@@ -66,6 +66,7 @@ class BaseSGDTemplate(
         ] = default_evaluator,
         eval_every=-1,
         peval_mode="epoch",
+        seed: int=42,
     ):
         """Init.
 
@@ -85,6 +86,7 @@ class BaseSGDTemplate(
         :param peval_mode: one of {'epoch', 'iteration'}. Decides whether the
             periodic evaluation during training should execute every
             `eval_every` epochs or iterations (Default='epoch').
+        :param seed: seed for data loader
         """
 
         super().__init__()  # type: ignore
@@ -148,6 +150,9 @@ class BaseSGDTemplate(
         """
 
         self.dataloader: Iterable[Any] = []
+
+        # data loader seed
+        self.seed = seed
         """ Dataloader. """
 
         self.mbatch: Optional[TMBInput] = None
@@ -377,6 +382,8 @@ class BaseSGDTemplate(
 
         if other_dataloader_args.get("pin_memory", None) is None:
             other_dataloader_args["pin_memory"] = self.device.type == "cuda"
+
+        other_dataloader_args["seed"] =  self.seed
 
         return other_dataloader_args
 
