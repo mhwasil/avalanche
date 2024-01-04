@@ -41,6 +41,11 @@ from torch.utils.data.sampler import Sampler, BatchSampler
 from torch.utils.data import ConcatDataset
 
 
+# set seeding
+import torch
+import random
+
+
 def return_identity(x):
     """
     The identity function. Can be wrapped in 'partial'
@@ -68,6 +73,7 @@ class MultiDatasetDataLoader:
         oversample_small_datasets: bool = False,
         distributed_sampling: bool = True,
         never_ending: bool = False,
+        seed: int = 42,
         **kwargs
     ):
         """Custom data loader for loading batches from multiple datasets.
@@ -105,6 +111,8 @@ class MultiDatasetDataLoader:
             never end. In this case, the `termination_dataset` and
             `oversample_small_datasets` parameters are ignored. Defaults to
             False.
+        :param seed: Data loader seed. This needs to be set every time dataloader
+            is called
         :param kwargs: data loader arguments used to instantiate the loader for
             each dataset. See PyTorch :class:`DataLoader`.
         """
@@ -130,6 +138,7 @@ class MultiDatasetDataLoader:
         self.loader_kwargs: Dict[str, Any] = kwargs
         self.termination_dataset: int = termination_dataset
         self.never_ending: bool = never_ending
+        self.seed: int = seed
 
         self.loader_kwargs, self.ffcv_args = self._extract_ffcv_args(self.loader_kwargs)
 
@@ -166,6 +175,7 @@ class MultiDatasetDataLoader:
                             self.loader_kwargs,
                             subset_mb_size,
                             force_no_workers=True,
+                            seed=self.seed,
                         )[0]
                     )
             else:
@@ -176,6 +186,7 @@ class MultiDatasetDataLoader:
                         self.loader_kwargs,
                         self.batch_sizes[self.termination_dataset],
                         force_no_workers=True,
+                        seed=self.seed,
                     )[0]
                 )
 
@@ -204,6 +215,7 @@ class MultiDatasetDataLoader:
             self.batch_sizes,
             self.distributed_sampling,
             self.loader_kwargs,
+            self.seed,
         )
 
         multi_dataset_batch_sampler = MultiDatasetSampler(
@@ -271,19 +283,21 @@ class MultiDatasetDataLoader:
 
     def __len__(self):
         return self.n_iterations
-
+    
     @staticmethod
     def _create_samplers(
         datasets: List[AvalancheDataset],
         batch_sizes: List[int],
         distributed_sampling: bool,
         loader_kwargs: Dict[str, Any],
+        seed: int = 42,
     ):
         samplers = []
 
         for dataset, dataset_mb_size in zip(datasets, batch_sizes):
             sampler = _make_sampler(
-                dataset, distributed_sampling, loader_kwargs, dataset_mb_size
+                dataset, distributed_sampling, loader_kwargs, dataset_mb_size,
+                seed,
             )
 
             samplers.append(sampler)
@@ -565,6 +579,7 @@ class ReplayDataLoader(MultiDatasetDataLoader):
                     kwargs,
                     subset_mb_size,
                     force_no_workers=True,
+                    #seed=self.seed,
                 )[0]
             )
 
@@ -770,7 +785,15 @@ def _make_data_loader(
     data_loader_args: Dict[str, Any],
     batch_size: int,
     force_no_workers: bool = False,
+    seed: int = 42,
 ):
+    
+    # set seed when dataloader is called
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
     data_loader_args = data_loader_args.copy()
     data_loader_args.pop("ffcv_args", None)
 
@@ -803,6 +826,10 @@ def _make_data_loader(
     else:
         sampler = None
         data_loader = DataLoader(dataset, batch_size=batch_size, **data_loader_args)
+    
+    # test randomization in dataloader
+    #for batch in data_loader:
+    #    print("dataloader batch: ",batch )
 
     return data_loader, sampler
 
@@ -830,6 +857,7 @@ def _make_sampler(
     distributed_sampling: bool,
     data_loader_args: Dict[str, Any],
     batch_size: int,
+    seed: int,
 ):
     loader, _ = _make_data_loader(
         dataset,
@@ -837,6 +865,7 @@ def _make_sampler(
         data_loader_args,
         batch_size,
         force_no_workers=True,
+        seed=seed,
     )
 
     sampler = loader.batch_sampler
