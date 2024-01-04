@@ -94,6 +94,7 @@ class SupervisedTemplate(
         ] = default_evaluator,
         eval_every=-1,
         peval_mode="epoch",
+        seed: int = 42,
     ):
         """Init.
 
@@ -118,6 +119,7 @@ class SupervisedTemplate(
         :param peval_mode: one of {'epoch', 'iteration'}. Decides whether the
             periodic evaluation during training should execute every
             `eval_every` epochs or iterations (Default='epoch').
+        :param seed: random seed for data loader
         """
         super().__init__()  # type: ignore
         BaseSGDTemplate.__init__(
@@ -133,6 +135,7 @@ class SupervisedTemplate(
             evaluator=evaluator,
             eval_every=eval_every,
             peval_mode=peval_mode,
+            seed=seed,
         )
         ###################################################################
         # State variables. These are updated during the train/eval loops. #
